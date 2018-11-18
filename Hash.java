@@ -33,6 +33,9 @@ public class Hash {
     
     public static String to_binary(String m){
         StringBuilder r = new StringBuilder("");
+        while(m.length() > 8){
+            m = m.substring(1);
+        }
         for(int x = 0; x < m.length(); x += 2){
             String hex_chr = m.substring(x, x+2);
             int hex_value = (Integer.parseInt(hex_chr, 16));
@@ -83,14 +86,18 @@ public class Hash {
     }
     
     public static String hasher(String hash_string){
+        //Initiaal k Values, Same As Paper
         String k[] = {"243F6A88", "85A308D3", "13198A2E", "03707344", "A4093822", "299F31D0", "082EFA98", "EC4E6C89"};
+        String z[] = {"243F6A88", "85A308D3", "13198A2E", "03707344", "A4093822", "299F31D0", "082EFA98", "EC4E6C89"};
+        //Add Padding If Length Too Short
         while(hash_string.length() != 128){
             hash_string += " ";
         }
         int string_length = hash_string.length();
         int t = fits(string_length, 4);
-        String w[] = new String[t];
         
+        //String Values Split Into 4 Then Hex'd
+        String w[] = new String[t];
         for(int x= 0; x < t; x++){
             int start = x * 4;
             int end = start + 4;
@@ -105,7 +112,8 @@ public class Hash {
             }
             w[x] = to_hex(w[x]);
         }
-
+        
+        //Round 1
         for(int x = 0; x < t; x++){
             int xx[] = new int[8];
             for(int y = 0; y < 8; y++){
@@ -114,20 +122,69 @@ public class Hash {
                     xx[y] += 8;
                 }
             }
-
             k[xx[0]] = FF(k[xx[0]], k[xx[1]], k[xx[2]], k[xx[3]], k[xx[4]], k[xx[5]], k[xx[6]], k[xx[7]], w[x]);
-            //for(int y = 0; y < 8; y++){
-            //    System.out.printf("xx[" + xx[y] + "] ");
-            //}
-            //System.out.println(x);
-            //System.out.println(k[xx[0]]);
         }
         
         //Round 2
-        String r = k[0];
-        r += k[2];
-        r+= k[3];
-        r += k[4];
+        for(int x = 0; x < t; x++){
+            int xx[] = new int[8];
+            for(int y = 0; y < 8; y++){
+                xx[y] = 7-y-x;
+                while(xx[y] < 0){
+                    xx[y] += 8;
+                }
+            }
+            k[xx[0]] = GG(k[xx[0]], k[xx[1]], k[xx[2]], k[xx[3]], k[xx[4]], k[xx[5]], k[xx[6]], k[xx[7]], w[x], "AAAAAAA");
+        }
+        
+        //Round 3
+        for(int x = 0; x < t; x++){
+            int xx[] = new int[8];
+            for(int y = 0; y < 8; y++){
+                xx[y] = 7-y-x;
+                while(xx[y] < 0){
+                    xx[y] += 8;
+                }
+            }
+            k[xx[0]] = HH(k[xx[0]], k[xx[1]], k[xx[2]], k[xx[3]], k[xx[4]], k[xx[5]], k[xx[6]], k[xx[7]], w[x], "AAAAAAA");
+        }
+        
+        //Finishing Up
+        for(int x = 0; x < 8; x ++){
+            Long temp_var = Long.parseLong(z[x], 16);
+            temp_var += Long.parseLong(k[x], 16);
+            z[x] = Long.toHexString(temp_var);
+        }
+        
+        String final_strings[] = {"000000FF", "FF000000", "00FF0000", "0000FF00"};
+        for(int x = 0; x < 4; x++){
+            int xx[] = new int[4];
+            for(int y = 0; y < 4; y++){
+                xx[y] = 3-y-x;
+                while(xx[y] < 0){
+                    xx[y] += 4;
+                }
+            }
+
+            String temp1 = and_result(z[7], final_strings[xx[0]]);
+            String temp2 = and_result(z[6], final_strings[xx[1]]);
+            String temp3 = and_result(z[5], final_strings[xx[2]]);
+            String temp4 = and_result(z[4], final_strings[xx[3]]);
+            String r = xor_result(temp1, temp2);
+            r = xor_result(r, temp3);
+            r = xor_result(r, temp4);
+            
+            String temp_mod = special_shift(Long.toBinaryString(Long.parseLong(r, 16)), (x+1)*8);
+            z[x] = Long.toHexString(Long.parseLong(r, 16) + Long.parseLong(temp_mod, 2));
+            while(z[x].length() > 8){
+                z[x] = z[x].substring(1);
+            }
+        }
+        
+        String r = z[0];
+        r += z[1];
+        r += z[2];
+        r += z[3];
         return r;
     }
     
@@ -193,6 +250,10 @@ public class Hash {
     }
     
     public static String special_shift(String a, int length){
+        //Regular Shift Deletes Bits That Over Reach, Paper Shift Moves Them To Other Side Therefore Can't Use >>>
+        while(a.length() != 32){
+            a = "0" + a;
+        }
         String r = a.substring(a.length() - length);
         r += a.substring(0, a.length() - length);
         return r;
@@ -212,9 +273,7 @@ public class Hash {
 
         return r;
     }
-            //System.out.println("Temp: " + Long.toHexString(h) + " Shift: " + Long.toHexString(h>>>7));
-        //System.out.println("A7: " + Long.toHexString(aa) + " Shift: " + Long.toHexString(aa>>>11));  //14d7ab0
-        //System.out.println("W:  " + Long.toHexString(aaa) + " Shift: " + aaa);    //1d89cd
+
     public static String GG(String A7, String A6, String A5, String A4, String A3, String A2, String A1, String A0, String w, String c){
         String r = "";
         String temp = G_phi(A6, A5, A4, A3, A2, A1, A0);
